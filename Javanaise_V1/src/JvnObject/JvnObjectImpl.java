@@ -1,44 +1,74 @@
 package JvnObject;
 
+import JvnObject.Interfaces.JvnObject;
+import JvnObject.Interfaces.JvnObject.Lock;
 import Server.Interfaces.JvnRemoteServer;
+import Server.JvnServerImpl;
+import static Server.JvnServerImpl.js;
 import java.io.Serializable;
 import java.util.ArrayList;
 import jvn.JvnException;
 
-public class JvnObjectImpl implements JvnObject.Interfaces.JvnObject {
+public class JvnObjectImpl implements Serializable, JvnObject {
 
     Serializable objectRemote;
     int id;
-    Lock state;
-    public ArrayList<JvnRemoteServer> servers;
+    transient Lock state;
 
     public JvnObjectImpl() {
-        servers = new ArrayList<>();
     }
 
-    public JvnObjectImpl(Serializable objectRemote, int id, Lock lock) {
+    public JvnObjectImpl(Serializable objectRemote, int id) {
         this.objectRemote = objectRemote;
         this.id = id;
-        this.state = lock;
-        this.servers = new ArrayList();
+        this.state = Lock.WLT;
     }
 
     @Override
     public void jvnLockRead() throws JvnException {
-        state = Lock.RLT;
+        switch (state) {
+            case NL:
+                JvnObjectImpl jo = (JvnObjectImpl) js.jvnLockRead(id);
+                objectRemote = jo.getObjectRemote();
+                state = Lock.RLT;
+                break;
+            case RLC:
+                state = Lock.RLT;
+                break;
+            case WLC:
+                state = Lock.RLT_WLC;
+                break;
+            default:
+                throw new JvnException("Read lock has a problem =>" + state);
+        }
     }
 
     @Override
     public void jvnLockWrite() throws JvnException {
-        state = Lock.WLT;
+        switch (state) {
+            case NL:
+            case RLC:
+                JvnObjectImpl jo = (JvnObjectImpl) js.jvnLockWrite(id);
+                objectRemote = jo.getObjectRemote();
+                state = Lock.WLT;
+                break;
+            case WLC:
+                state = Lock.WLT;
+                break;
+            default:
+                throw new JvnException("Write lock has a problem => " + state);
+        }
     }
 
     @Override
     public void jvnUnLock() throws JvnException {
-        if (state == Lock.WLT || state == Lock.RLT_WLC) {
+        if (state == Lock.WLT) {
+            js.jvnUnlock(id, objectRemote);
             state = Lock.WLC;
         } else if (state == Lock.RLT) {
             state = Lock.RLC;
+        } else if (state == Lock.RLT_WLC) {
+            state = Lock.WLC;
         }
     }
 
@@ -53,18 +83,20 @@ public class JvnObjectImpl implements JvnObject.Interfaces.JvnObject {
     }
 
     @Override
-    public void jvnInvalidateReader() throws JvnException {
-        
+    public synchronized void jvnInvalidateReader() throws JvnException {
+        state = Lock.NL;
     }
 
     @Override
-    public Serializable jvnInvalidateWriter() throws JvnException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public synchronized Serializable jvnInvalidateWriter() throws JvnException {
+        state = Lock.NL;
+        return state;
     }
 
     @Override
-    public Serializable jvnInvalidateWriterForReader() throws JvnException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public synchronized Serializable jvnInvalidateWriterForReader() throws JvnException {
+        state = Lock.RLC;
+        return state;
     }
 
     public Serializable getObjectRemote() {
@@ -83,20 +115,11 @@ public class JvnObjectImpl implements JvnObject.Interfaces.JvnObject {
         this.id = id;
     }
 
-    public Lock getLock() {
+    public Lock getState() {
         return state;
     }
 
-    public void setLock(Lock lock) {
-        this.state = lock;
+    public void setState(Lock state) {
+        this.state = state;
     }
-
-    public ArrayList<JvnRemoteServer> getServers() {
-        return servers;
-    }
-
-    public void setServers(ArrayList<JvnRemoteServer> servers) {
-        this.servers = servers;
-    }
-
 }

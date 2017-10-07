@@ -6,21 +6,19 @@ package Server;
  *
  * Authors:
  */
-import Configs.Config;
 import Coordinator.Interfaces.JvnRemoteCoord;
-import Coordinator.JvnCoordImpl;
 import JvnObject.Interfaces.JvnObject;
+import JvnObject.Interfaces.JvnObject.Lock;
 import JvnObject.JvnObjectImpl;
 import Server.Interfaces.JvnLocalServer;
 import Server.Interfaces.JvnRemoteServer;
 import java.rmi.server.UnicastRemoteObject;
 import java.io.*;
-import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.concurrent.locks.Lock;
+import java.rmi.registry.Registry;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import jvn.JvnException;
@@ -30,8 +28,9 @@ public class JvnServerImpl extends UnicastRemoteObject
 
     // A JVN server is managed as a singleton 
     public static JvnServerImpl js = null;
+    public static Registry reg;
     public JvnRemoteCoord look_up;
-    public Collection<JvnObjectImpl> cache;
+    static JvnObjectImpl cache;
 
     /**
      * Default constructor
@@ -41,8 +40,9 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     private JvnServerImpl() throws Exception {
         super();
-        look_up = (JvnRemoteCoord) Naming.lookup(Config.coordinatorHost);
-        cache = new ArrayList<>();
+        reg = LocateRegistry.getRegistry("localhost", 2020);
+        look_up = (JvnRemoteCoord) reg.lookup("Coordinator");
+        cache = null;
     }
 
     /**
@@ -57,6 +57,7 @@ public class JvnServerImpl extends UnicastRemoteObject
             try {
                 js = new JvnServerImpl();
             } catch (Exception e) {
+                System.err.println(e);
                 return null;
             }
         }
@@ -87,13 +88,13 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     @Override
     public JvnObject jvnCreateObject(Serializable o) throws jvn.JvnException {
-        JvnObject jvnObject = null;
         try {
-            jvnObject = new JvnObjectImpl(o, look_up.jvnGetObjectId(), JvnObject.Lock.WLT);
+            int id = look_up.jvnGetObjectId();
+            cache = new JvnObjectImpl(o, id);
         } catch (RemoteException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return jvnObject;
+        return cache;
     }
 
     /**
@@ -107,7 +108,6 @@ public class JvnServerImpl extends UnicastRemoteObject
     @Override
     public void jvnRegisterObject(String jon, JvnObject jo) throws jvn.JvnException {
         try {
-            cache.add((JvnObjectImpl) jvnCreateObject(jo));
             look_up.jvnRegisterObject(jon, jo, js);
         } catch (RemoteException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
@@ -123,14 +123,15 @@ public class JvnServerImpl extends UnicastRemoteObject
      *
      */
     @Override
-    public JvnObject jvnLookupObject(String jon) throws jvn.JvnException {
-        JvnObject jvnObject = null;
+    public JvnObject jvnLookupObject(String jon) {
         try {
-            jvnObject = look_up.jvnLookupObject(jon, js);
-        } catch (RemoteException ex) {
+            cache = (JvnObjectImpl) look_up.jvnLookupObject(jon, js);
+            cache.setState(Lock.NL);
+        } catch (RemoteException | JvnException ex) {
+            System.err.println(ex);
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return jvnObject;
+        return cache;
     }
 
     /**
@@ -187,9 +188,8 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     @Override
     public void jvnInvalidateReader(int joi) {
-        JvnObject jvnObject = getJvnObjectByIdInCache(joi);
         try {
-            jvnObject.jvnInvalidateReader();
+            cache.jvnInvalidateReader();
         } catch (JvnException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -206,13 +206,12 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     @Override
     public Serializable jvnInvalidateWriter(int joi) throws java.rmi.RemoteException, jvn.JvnException {
-        JvnObject jvnObject = getJvnObjectByIdInCache(joi);
         try {
-            jvnObject.jvnInvalidateWriter();
+            cache.jvnInvalidateWriter();
         } catch (JvnException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return jvnObject;
+        return cache;
     }
 
     /**
@@ -226,39 +225,20 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     @Override
     public Serializable jvnInvalidateWriterForReader(int joi) throws java.rmi.RemoteException, jvn.JvnException {
-        JvnObject jvnObject = getJvnObjectByIdInCache(joi);
         try {
-            jvnObject.jvnInvalidateWriterForReader();
+            cache.jvnInvalidateWriterForReader();
         } catch (JvnException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return jvnObject;
+        return cache;
     }
 
-    private int getIdOfJvnObject(JvnObject jvnObj) {
-        Integer jvnObjectId = null;
+    @Override
+    public void jvnUnlock(int joi, Serializable objectRemote) throws JvnException {
         try {
-            jvnObjectId = jvnObj.jvnGetObjectId();
-        } catch (JvnException ex) {
-            Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return jvnObjectId;
-    }
-
-    private JvnObject getJvnObjectByIdInCache(int id) {
-        return cache.stream().filter(jvnObj -> getIdOfJvnObject(jvnObj) == id)
-                .findFirst().get();
-    }
-
-    public static void main(String[] args) {
-        try {
-            LocateRegistry.createRegistry(Config.clientServerHostPort_1);
-            Naming.rebind(Config.clientServerHost_1, new JvnServerImpl());
-            System.err.println("Server ready");
-
-        } catch (Exception ex) {
+            look_up.jvnUnlock(joi, objectRemote);
+        } catch (RemoteException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-
 }

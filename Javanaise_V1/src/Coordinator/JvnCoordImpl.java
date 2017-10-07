@@ -6,34 +6,32 @@
  */
 package Coordinator;
 
-import Configs.Config;
 import Coordinator.Interfaces.JvnRemoteCoord;
 import JvnObject.Interfaces.JvnObject;
+import JvnObject.Interfaces.JvnObject.Lock;
 import JvnObject.JvnObjectImpl;
 import java.rmi.server.UnicastRemoteObject;
 import java.io.Serializable;
 import jvn.JvnException;
 import Server.Interfaces.JvnRemoteServer;
-import java.rmi.Naming;
+import java.rmi.AlreadyBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.ObjID;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class JvnCoordImpl
-        extends UnicastRemoteObject implements JvnRemoteCoord {
+public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord {
 
     public JvnRemoteServer look_up;
-    public Map<String, JvnObjectImpl> store;
+    public Map<String, ObjectManager> store;
     public ArrayList<JvnRemoteServer> servers;
     public AtomicInteger counter_object;
-    public JvnObjectImpl jvnObj;
 
     /**
      * Default constructor
@@ -58,7 +56,6 @@ public class JvnCoordImpl
      */
     @Override
     public synchronized int jvnGetObjectId() throws java.rmi.RemoteException, jvn.JvnException {
-        jvnObj = new JvnObjectImpl();
         return counter_object.getAndIncrement();
     }
 
@@ -74,9 +71,12 @@ public class JvnCoordImpl
      */
     @Override
     public synchronized void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js) throws java.rmi.RemoteException, jvn.JvnException {
-        jvnObj.setObjectRemote(jo);
-        jvnObj.getServers().add(js);
-        store.put(jon, jvnObj);
+        JvnObjectImpl joImpl = (JvnObjectImpl) jo;
+        joImpl.setState(Lock.WLT);
+
+        ObjectManager objM = new ObjectManager(joImpl, js);
+        objM.getReaderServers().add(js);
+        store.put(jon, objM);
     }
 
     /**
@@ -90,8 +90,13 @@ public class JvnCoordImpl
      */
     @Override
     public synchronized JvnObject jvnLookupObject(String jon, JvnRemoteServer js) throws java.rmi.RemoteException, jvn.JvnException {
-        JvnObjectImpl jvnObjImpl = store.get(jon);
-        jvnObjImpl.getServers().add(js);
+        JvnObjectImpl jvnObjImpl = null;
+        if (store.containsKey(jon)) {
+            jvnObjImpl = store.get(jon).getJvnObjectImpl();
+            ObjectManager joM = store.get(jon);
+            joM.getReaderServers().add(js);
+            store.put(jon, joM);
+        }
         return jvnObjImpl;
     }
 
@@ -102,12 +107,28 @@ public class JvnCoordImpl
      * @param js : the remote reference of the server
      * @return the current JVN object state
      * @throws java.rmi.RemoteException, JvnException
+     * @throws jvn.JvnException
      *
      */
-    public synchronized Serializable jvnLockRead(int joi, JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
-        JvnObjectImpl jo = geJvnObjImplById(joi);
-        //TODO
-        jo.jvnLockRead();
+    @Override
+    public Serializable jvnLockRead(int joi, JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
+        ObjectManager joM = getObjectManagerById(joi);
+        JvnObjectImpl jo = joM.getJvnObjectImpl();
+        Lock joState = jo.getState();
+
+        while (joState == Lock.WLT) {
+            joState = jo.getState();
+            try {
+                wait();
+            } catch (InterruptedException ex) {
+                System.err.println(ex);
+            }
+        }
+
+        joM.getWriterServer().jvnInvalidateWriterForReader(joi);
+        joM.getReaderServers().add(js);
+        store.put(getSymbolById(joi), joM);
+
         return jo;
     }
 
@@ -121,11 +142,40 @@ public class JvnCoordImpl
      *
      */
     @Override
-    public synchronized Serializable jvnLockWrite(int joi, JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
-        JvnObjectImpl jo = geJvnObjImplById(joi);
-        //TODO
-        jo.jvnLockWrite();
+    public Serializable jvnLockWrite(int joi, JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
+        ObjectManager joM = getObjectManagerById(joi);
+        JvnObjectImpl jo = joM.getJvnObjectImpl();
+        Lock joState = jo.getState();
+
+        while (joState == Lock.WLT) {
+            joState = jo.getState();
+            try {
+                wait();
+            } catch (InterruptedException ex) {
+                System.err.println(ex);
+            }
+        }
+
+        joM.getWriterServer().jvnInvalidateWriter(joi);
+        joM.setWriterServer(js);
+
+        joM.getReaderServers().stream().forEach(server -> invalidateReader(server, joi));
+        joM.removeReaderServers();
+        joM.getReaderServers().add(js);
+
+        joM.getJvnObjectImpl().setState(Lock.WLT);
         return jo;
+    }
+
+    @Override
+    public synchronized void jvnUnlock(int joi, Serializable objectRemote) throws RemoteException, JvnException {
+        ObjectManager joM = getObjectManagerById(joi);
+        JvnObjectImpl jo = joM.getJvnObjectImpl();
+        jo.setState(Lock.NL);
+        jo.setObjectRemote(objectRemote);
+        store.put(getSymbolById(joi), joM);
+
+        notifyAll();
     }
 
     /**
@@ -141,27 +191,49 @@ public class JvnCoordImpl
         servers.remove(js);
         store.entrySet().stream()
                 .map(keyValue -> keyValue.getValue()
-                        .getServers().remove(js));
+                        .getReaderServers().remove(js));
+        store.entrySet().stream()
+                .filter(keyValue -> keyValue.getValue().getWriterServer() == js)
+                .map(server -> server.setValue(null));
     }
 
-    private JvnObjectImpl geJvnObjImplById(int objId) {
+    /**
+     * ****************************************************************************************
+     */
+    private void invalidateReader(JvnRemoteServer js, int joi) {
+        try {
+            js.jvnInvalidateReader(joi);
+        } catch (RemoteException ex) {
+            Logger.getLogger(JvnCoordImpl.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (JvnException ex) {
+            Logger.getLogger(JvnCoordImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private ObjectManager getObjectManagerById(int objId) {
         return store.entrySet().stream()
-                .filter(keyValue -> keyValue.getValue().getId() == objId)
+                .filter(keyValue -> keyValue.getValue().getJvnObjectImpl().getId() == objId)
                 .findFirst().get().getValue();
+    }
+
+    private String getSymbolById(int id) {
+        return store.entrySet().stream()
+                .filter(keyValue -> keyValue.getValue().getJvnObjectImpl().getId() == id)
+                .findFirst().get().getKey();
     }
 
     public static void main(String[] args) {
         try {
-            LocateRegistry.createRegistry(Config.coordinatorHostPort);
-            Naming.rebind(Config.coordinatorHost, new JvnCoordImpl());
-            System.err.println("Coordinator ready on " + Config.coordinatorHost);
+            JvnCoordImpl coord = new JvnCoordImpl();
+            Registry registry = LocateRegistry.createRegistry(2020);
+            registry.bind("Coordinator", coord);
+            System.err.println("Coordinator ready on " + registry);
         } catch (RemoteException e) {
             System.err.println("Server exception: " + e.toString());
-
+        } catch (AlreadyBoundException ex) {
+            Logger.getLogger(JvnCoordImpl.class.getName()).log(Level.SEVERE, null, ex);
         } catch (Exception ex) {
-            Logger.getLogger(JvnCoordImpl.class
-                    .getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(JvnCoordImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-
     }
 }

@@ -11,7 +11,6 @@ import java.rmi.*;
 import java.io.*;
 import jvn.JvnException;
 import Server.Interfaces.JvnRemoteServer;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Remote Interface of the JVN Coordinator
@@ -23,7 +22,7 @@ public interface JvnRemoteCoord extends Remote {
      * object)
      *
      * @throws java.rmi.RemoteException,JvnException
-	*
+     *
      */
     public int jvnGetObjectId()
             throws java.rmi.RemoteException, jvn.JvnException;
@@ -36,7 +35,7 @@ public interface JvnRemoteCoord extends Remote {
      * @param joi : the JVN object identification
      * @param js : the remote reference of the JVNServer
      * @throws java.rmi.RemoteException,JvnException
-	*
+     *
      */
     public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
             throws java.rmi.RemoteException, jvn.JvnException;
@@ -47,7 +46,7 @@ public interface JvnRemoteCoord extends Remote {
      * @param jon : the JVN object name
      * @param js : the remote reference of the JVNServer
      * @throws java.rmi.RemoteException,JvnException
-	*
+     *
      */
     public JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
             throws java.rmi.RemoteException, jvn.JvnException;
@@ -59,7 +58,7 @@ public interface JvnRemoteCoord extends Remote {
      * @param js : the remote reference of the server
      * @return the current JVN object state
      * @throws java.rmi.RemoteException, JvnException
-	*
+     *
      */
     public Serializable jvnLockRead(int joi, JvnRemoteServer js)
             throws java.rmi.RemoteException, JvnException;
@@ -71,7 +70,7 @@ public interface JvnRemoteCoord extends Remote {
      * @param js : the remote reference of the server
      * @return the current JVN object state
      * @throws java.rmi.RemoteException, JvnException
-	*
+     *
      */
     public Serializable jvnLockWrite(int joi, JvnRemoteServer js)
             throws java.rmi.RemoteException, JvnException;
@@ -81,9 +80,12 @@ public interface JvnRemoteCoord extends Remote {
      *
      * @param js : the remote reference of the server
      * @throws java.rmi.RemoteException, JvnException
-	*
+     *
      */
     public void jvnTerminate(JvnRemoteServer js)
+            throws java.rmi.RemoteException, JvnException;
+
+    public void jvnUnlock(int joi, Serializable objectRemote)
             throws java.rmi.RemoteException, JvnException;
 
 }
