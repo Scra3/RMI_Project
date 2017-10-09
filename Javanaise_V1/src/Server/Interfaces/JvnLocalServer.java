@@ -80,7 +80,4 @@ public interface JvnLocalServer {
      */
     public void jvnTerminate()
             throws jvn.JvnException;
-
-    public void jvnUnlock(int joi, Serializable objectRemote)
-            throws JvnException;
 }

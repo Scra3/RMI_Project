@@ -85,7 +85,4 @@ public interface JvnRemoteCoord extends Remote {
     public void jvnTerminate(JvnRemoteServer js)
             throws java.rmi.RemoteException, JvnException;
 
-    public void jvnUnlock(int joi, Serializable objectRemote)
-            throws java.rmi.RemoteException, JvnException;
-
 }

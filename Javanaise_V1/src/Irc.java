@@ -5,13 +5,15 @@
  *
  * Authors:
  */
-
 import JvnObject.Interfaces.JvnObject;
 import Server.JvnServerImpl;
+import static Server.JvnServerImpl.js;
 import java.awt.*;
 import java.awt.event.*;
 
 import java.io.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jvn.JvnException;
 
 public class Irc {
@@ -34,6 +36,7 @@ public class Irc {
             // look up the IRC object in the JVN server
             // if not found, create it, and register it in the JVN server
             JvnObject jo = js.jvnLookupObject("IRC");
+            //JvnObject jo = null;
 
             if (jo == null) {
                 jo = js.jvnCreateObject((Serializable) new Sentence());
@@ -65,15 +68,62 @@ public class Irc {
         frame.add(text);
         data = new TextField(40);
         frame.add(data);
+
         Button read_button = new Button("read");
         read_button.addActionListener(new readListener(this));
         frame.add(read_button);
+
         Button write_button = new Button("write");
         write_button.addActionListener(new writeListener(this));
         frame.add(write_button);
+
+        Button disconnect_button = new Button("disconnect");
+        disconnect_button.addActionListener(new disconnectListener(this));
+        frame.add(disconnect_button);
+
+        Button unlock_button = new Button("unlock");
+        unlock_button.addActionListener(new disconnectListener(this));
+        frame.add(unlock_button);
+
         frame.setSize(545, 201);
         text.setBackground(Color.black);
         frame.setVisible(true);
+    }
+}
+
+class unlockListener implements ActionListener {
+
+    Irc irc;
+
+    public unlockListener(Irc i) {
+        irc = i;
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        try {
+            irc.sentence.jvnUnLock();
+        } catch (JvnException ex) {
+            Logger.getLogger(disconnectListener.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+}
+
+class disconnectListener implements ActionListener {
+
+    Irc irc;
+
+    public disconnectListener(Irc i) {
+        irc = i;
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        try {
+            js.jvnTerminate();
+        } catch (JvnException ex) {
+            Logger.getLogger(disconnectListener.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 }
 
@@ -99,7 +149,7 @@ class readListener implements ActionListener {
             irc.sentence.jvnLockRead();
             // invoke the method
             String s = ((Sentence) (irc.sentence.jvnGetObjectState())).read();
-            
+
             // unlock the object
             irc.sentence.jvnUnLock();
 

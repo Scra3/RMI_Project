@@ -126,7 +126,9 @@ public class JvnServerImpl extends UnicastRemoteObject
     public JvnObject jvnLookupObject(String jon) {
         try {
             cache = (JvnObjectImpl) look_up.jvnLookupObject(jon, js);
-            cache.setState(Lock.NL);
+            if (cache != null) {
+                cache.setState(Lock.NL);
+            }
         } catch (RemoteException | JvnException ex) {
             System.err.println(ex);
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
@@ -231,14 +233,5 @@ public class JvnServerImpl extends UnicastRemoteObject
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
         return cache;
-    }
-
-    @Override
-    public void jvnUnlock(int joi, Serializable objectRemote) throws JvnException {
-        try {
-            look_up.jvnUnlock(joi, objectRemote);
-        } catch (RemoteException ex) {
-            Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
-        }
     }
 }

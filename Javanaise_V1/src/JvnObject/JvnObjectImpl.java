@@ -2,11 +2,11 @@ package JvnObject;
 
 import JvnObject.Interfaces.JvnObject;
 import JvnObject.Interfaces.JvnObject.Lock;
-import Server.Interfaces.JvnRemoteServer;
-import Server.JvnServerImpl;
 import static Server.JvnServerImpl.js;
 import java.io.Serializable;
-import java.util.ArrayList;
+import static java.lang.Thread.sleep;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jvn.JvnException;
 
 public class JvnObjectImpl implements Serializable, JvnObject {
@@ -26,6 +26,12 @@ public class JvnObjectImpl implements Serializable, JvnObject {
 
     @Override
     public void jvnLockRead() throws JvnException {
+        try {
+            sleep(1000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(JvnObjectImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
         switch (state) {
             case NL:
                 JvnObjectImpl jo = (JvnObjectImpl) js.jvnLockRead(id);
@@ -39,7 +45,7 @@ public class JvnObjectImpl implements Serializable, JvnObject {
                 state = Lock.RLT_WLC;
                 break;
             default:
-                throw new JvnException("Read lock has a problem =>" + state);
+                throw new JvnException("Read lock has a problem => " + state);
         }
     }
 
@@ -61,14 +67,15 @@ public class JvnObjectImpl implements Serializable, JvnObject {
     }
 
     @Override
-    public void jvnUnLock() throws JvnException {
+    public synchronized void jvnUnLock() throws JvnException {
         if (state == Lock.WLT) {
-            js.jvnUnlock(id, objectRemote);
             state = Lock.WLC;
         } else if (state == Lock.RLT) {
             state = Lock.RLC;
+            notifyAll();
         } else if (state == Lock.RLT_WLC) {
             state = Lock.WLC;
+            notifyAll();
         }
     }
 
@@ -84,19 +91,44 @@ public class JvnObjectImpl implements Serializable, JvnObject {
 
     @Override
     public synchronized void jvnInvalidateReader() throws JvnException {
+        while (state == Lock.RLT || state == Lock.RLT_WLC) {
+            try {
+                wait();
+            } catch (InterruptedException ex) {
+                Logger.getLogger(JvnObjectImpl.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+
         state = Lock.NL;
     }
 
     @Override
     public synchronized Serializable jvnInvalidateWriter() throws JvnException {
+        while (state == Lock.WLT) {
+            try {
+                wait();
+            } catch (InterruptedException ex) {
+                System.err.println(ex);
+            }
+        }
+
         state = Lock.NL;
-        return state;
+        return objectRemote;
     }
 
     @Override
     public synchronized Serializable jvnInvalidateWriterForReader() throws JvnException {
+
+        while (state == Lock.WLT) {
+            try {
+                wait();
+            } catch (InterruptedException ex) {
+                System.err.println(ex);
+            }
+        }
+        
         state = Lock.RLC;
-        return state;
+        return objectRemote;
     }
 
     public Serializable getObjectRemote() {
