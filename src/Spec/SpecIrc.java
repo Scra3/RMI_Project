@@ -14,7 +14,7 @@ import java.awt.*;
 import java.io.*;
 import static java.lang.Thread.sleep;
 
-public class SpecIrc implements Runnable {
+public class SpecIrc {
 
     public TextArea text;
     public TextField data;
@@ -26,8 +26,7 @@ public class SpecIrc implements Runnable {
      * application
      *
      */
-    @Override
-    public void run() {
+    public static void main(String argv[]) {
         try {
             // initialize 
             JvnServerImpl js = JvnServerImpl.jvnGetServer();
@@ -47,7 +46,7 @@ public class SpecIrc implements Runnable {
             //new Irc(jo);
             int i = 0;
             sleep(5000);
-            while (i <= 10) {
+            while (i <= 10000000) {
                 // lock the object in read mode
                 jo.jvnLockRead();
                 // invoke the method
@@ -64,7 +63,7 @@ public class SpecIrc implements Runnable {
                 // invoke the method
                 ((BurstSentence) (jo.jvnGetObjectState())).write(s);
                 jo.jvnUnLock();
-                sleep(2000);
+                sleep(10);
             }
         } catch (Exception e) {
             System.out.println("IRC problem : " + e);
