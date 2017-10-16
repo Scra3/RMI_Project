@@ -3,6 +3,7 @@ package JvnObject;
 import JvnObject.Interfaces.JvnObject;
 import JvnObject.Interfaces.JvnObject.Lock;
 import static Server.JvnServerImpl.js;
+import Spec.BurstSentence;
 import java.io.Serializable;
 import jvn.JvnException;
 
@@ -25,14 +26,21 @@ public class JvnObjectImpl implements Serializable, JvnObject {
     public void jvnLockRead() throws JvnException {
         switch (state) {
             case NL:
+                System.out.println("NL");
                 JvnObjectImpl jo = (JvnObjectImpl) js.jvnLockRead(id);
+                System.out.println("READ : " + Thread.currentThread().getName() + "_" + state);
                 objectRemote = jo.getObjectRemote();
+                System.out.println("Get object");
+                System.out.println(objectRemote);
+
                 state = Lock.RLT;
                 break;
             case RLC:
+                System.out.println("RLC");
                 state = Lock.RLT;
                 break;
             case WLC:
+                System.out.println("WLC");
                 state = Lock.RLT_WLC;
                 break;
             default:
@@ -45,11 +53,14 @@ public class JvnObjectImpl implements Serializable, JvnObject {
         switch (state) {
             case NL:
             case RLC:
+                System.out.println("RLC ou NL");
                 JvnObjectImpl jo = (JvnObjectImpl) js.jvnLockWrite(id);
+                System.out.println("WRITE : " + Thread.currentThread().getName() + "_" + state);
                 objectRemote = jo.getObjectRemote();
                 state = Lock.WLT;
                 break;
             case WLC:
+                System.out.println("WLC");
                 state = Lock.WLT;
                 break;
             default:
@@ -59,6 +70,7 @@ public class JvnObjectImpl implements Serializable, JvnObject {
 
     @Override
     public synchronized void jvnUnLock() throws JvnException {
+        System.out.println("UNLOCK : " + Thread.currentThread().getName() + "_" + state);
         if (state == Lock.WLT) {
             state = Lock.WLC;
         } else if (state == Lock.RLT) {
@@ -89,6 +101,7 @@ public class JvnObjectImpl implements Serializable, JvnObject {
                 System.err.println(ex);
             }
         }
+        System.out.println("INVALIDATE READER");
 
         state = Lock.NL;
     }
@@ -102,6 +115,7 @@ public class JvnObjectImpl implements Serializable, JvnObject {
                 System.err.println(ex);
             }
         }
+        System.out.println("INVALIDATE WRITER");
 
         state = Lock.NL;
         return objectRemote;
@@ -116,6 +130,7 @@ public class JvnObjectImpl implements Serializable, JvnObject {
                 System.err.println(ex);
             }
         }
+        System.out.println("INVALIDATE WRITER FOR READER");
 
         state = Lock.RLC;
         return objectRemote;
