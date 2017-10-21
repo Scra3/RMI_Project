@@ -8,6 +8,7 @@ package Coordinator;
 import JvnObject.JvnObjectImpl;
 import Server.Interfaces.JvnRemoteServer;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -16,7 +17,7 @@ import java.util.ArrayList;
 public class ObjectManager {
 
     JvnObjectImpl jvnObjectImpl;
-    ArrayList<JvnRemoteServer> readerServers;
+    List<JvnRemoteServer> readerServers;
     JvnRemoteServer writerServer;
 
     public ObjectManager(JvnObjectImpl jvnObjectImpl, JvnRemoteServer writerServer) {
@@ -33,7 +34,7 @@ public class ObjectManager {
         this.jvnObjectImpl = jvnObjectImpl;
     }
 
-    public ArrayList<JvnRemoteServer> getReaderServers() {
+    public List<JvnRemoteServer> getReaderServers() {
         return readerServers;
     }
 

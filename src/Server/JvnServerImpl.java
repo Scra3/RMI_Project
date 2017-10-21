@@ -21,7 +21,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import jvn.JvnException;
 
-public class JvnServerImpl extends UnicastRemoteObject
+public class JvnServerImpl
+        extends UnicastRemoteObject
         implements JvnLocalServer, JvnRemoteServer {
 
     // A JVN server is managed as a singleton 
@@ -38,8 +39,8 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     private JvnServerImpl() throws Exception {
         super();
-        reg = LocateRegistry.getRegistry("localhost", 1099);
-        look_up = (JvnRemoteCoord) reg.lookup("Coordinator");
+        reg = LocateRegistry.getRegistry("localhost", Configs.Config.coordinatorHostPort);
+        look_up = (JvnRemoteCoord) reg.lookup(Configs.Config.coordinatorName);
         cache = null;
     }
 
@@ -144,13 +145,13 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     @Override
     public Serializable jvnLockRead(int joi) throws JvnException {
-        Serializable jvnObject = null;
+        Serializable remoteObject = null;
         try {
-            jvnObject = look_up.jvnLockRead(joi, js);
+            remoteObject = look_up.jvnLockRead(joi, js);
         } catch (RemoteException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return jvnObject;
+        return remoteObject;
     }
 
     /**
@@ -163,13 +164,13 @@ public class JvnServerImpl extends UnicastRemoteObject
      */
     @Override
     public Serializable jvnLockWrite(int joi) throws JvnException {
-        Serializable jvnObject = null;
+        Serializable remoteObject = null;
         try {
-            jvnObject = look_up.jvnLockWrite(joi, js);
+            remoteObject = look_up.jvnLockWrite(joi, js);
         } catch (RemoteException ex) {
             Logger.getLogger(JvnServerImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return jvnObject;
+        return remoteObject;
     }
 
     /**

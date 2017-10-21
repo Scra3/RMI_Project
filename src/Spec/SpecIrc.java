@@ -6,20 +6,16 @@ package Spec;
  *
  * Authors:
  */
-import JvnObject.Interfaces.JvnObject;
-import Server.JvnServerImpl;
-import static Server.JvnServerImpl.js;
-import java.awt.*;
-
-import java.io.*;
+import Irc.ISentence;
+import Irc.Sentence;
+import JvnObject.JvnDynamicProxy;
 import static java.lang.Thread.sleep;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class SpecIrc {
 
-    public TextArea text;
-    public TextField data;
-    Frame frame;
-    JvnObject sentence;
+    ISentence sentence;
 
     /**
      * main method create a JVN object nammed IRC for representing the Chat
@@ -27,46 +23,35 @@ public class SpecIrc {
      *
      */
     public static void main(String argv[]) {
+        new SpecIrc((ISentence) JvnDynamicProxy.intitialyze(
+                new Sentence(),
+                "IRC"
+        ));
+    }
+
+    public SpecIrc(ISentence sentence) {
+        this.sentence = sentence;
+
         try {
-            // initialize 
-            JvnServerImpl js = JvnServerImpl.jvnGetServer();
+            startSpec();
+        } catch (InterruptedException ex) {
+            Logger.getLogger(SpecIrc.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
 
-            // look up the IRC object in the JVN server
-            // if not found, create it, and register it in the JVN server
-            JvnObject jo = js.jvnLookupObject("IRC");
-            //JvnObject jo = null;
+    private void startSpec() throws InterruptedException {
+        int i = 0;
+        sleep(5000);
+        while (i <= 10000000) {
+            String s = this.sentence.read();
+            System.out.println("READ : " + s);
 
-            if (jo == null) {
-                jo = js.jvnCreateObject((Serializable) new BurstSentence());
-                // after creation, I have a write lock on the object
-                js.jvnRegisterObject("IRC", jo);
-                jo.jvnUnLock();
-            }
-            // create the graphical part of the Chat application
-            //new Irc(jo);
-            int i = 0;
-            sleep(5000);
-            while (i <= 10000000) {
-                // lock the object in read mode
-                jo.jvnLockRead();
-                // invoke the method
-                String s = ((BurstSentence) (jo.jvnGetObjectState())).read();
-                System.out.println("READ " + s);
-                //unlock the object
-                jo.jvnUnLock();
+            i++;
 
-                // get the value to be written from the buffer
-                s = "Ecriture" + "_" + i++;
-                System.out.println("WRITE " + s);
-                // lock the object in write mode
-                jo.jvnLockWrite();
-                // invoke the method
-                ((BurstSentence) (jo.jvnGetObjectState())).write(s);
-                jo.jvnUnLock();
-                sleep(10);
-            }
-        } catch (Exception e) {
-            System.out.println("IRC problem : " + e);
+            s = i + "_" + "write";
+            this.sentence.write(s);
+            System.out.println("WRITE");
+            System.out.println(s);
         }
     }
 }
