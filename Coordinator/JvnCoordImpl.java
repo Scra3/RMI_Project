@@ -14,11 +14,17 @@ import java.rmi.server.UnicastRemoteObject;
 import java.io.Serializable;
 import jvn.JvnException;
 import Server.Interfaces.JvnRemoteServer;
-import Server.JvnServerImpl;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.rmi.AlreadyBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,9 +33,11 @@ import java.util.logging.Logger;
 
 public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord {
 
+    private final static String storeBackupFile = "/home/scra/Documents/TRAVAUX/Javanaise-Project/src/Coordinator/StoreBackup.ser";
     public JvnRemoteServer look_up;
     public Map<String, ObjectManager> store;
     public AtomicInteger counter_object;
+    public final int storeSize;
 
     /**
      * Default constructor
@@ -38,8 +46,9 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
      *
      */
     private JvnCoordImpl() throws Exception {
-        store = new HashMap();
+        storeSize = 5;
         counter_object = new AtomicInteger(0);
+        store = new HashMap<>();
     }
 
     /**
@@ -70,10 +79,19 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
     public synchronized void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js) throws java.rmi.RemoteException, jvn.JvnException {
         JvnObjectImpl joImpl = (JvnObjectImpl) jo;
         joImpl.setState(Lock.WLT);
-
         ObjectManager objM = new ObjectManager(joImpl, js);
         objM.setWriterServer(js);
-        store.put(jon, objM);
+
+        if (store.size() < storeSize) {
+            store.put(jon, objM);
+            System.out.println(store.size());
+        } else {
+            ObjectManager oldest = store.entrySet().stream()
+                    .map(sobjM -> sobjM.getValue())
+                    .min(Comparator.comparingInt(ObjectManager::getUtilizationDegree)).get();
+            store.remove(getSymbolById(oldest.getJvnObjectImpl().getId()));
+            store.put(jon, objM);
+        }
     }
 
     /**
@@ -175,12 +193,12 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
     @Override
     public synchronized void jvnTerminate(JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
         store.entrySet().stream()
-                .map(keyValue -> keyValue.getValue()
+                .forEach(keyValue -> keyValue.getValue()
                         .getReaderServers().remove(js));
 
         store.entrySet().stream()
                 .filter(keyValue -> keyValue.getValue().getWriterServer() == js)
-                .map(server -> server.setValue(null));
+                .forEach(server -> server.setValue(null));
     }
 
     /**
@@ -221,5 +239,39 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
         } catch (Exception ex) {
             Logger.getLogger(JvnCoordImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+
+    private void saveStore() {
+        try {
+            File file = new File(storeBackupFile);
+            FileOutputStream f = new FileOutputStream(file);
+            ObjectOutputStream objOut = new ObjectOutputStream(f);
+            objOut.writeObject(store);
+            objOut.close();
+            f.close();
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
+    }
+
+    private void intializeStore() {
+        try {
+            File file = new File(storeBackupFile);
+            FileInputStream f = new FileInputStream(file);
+            if (f.read() != -1) {
+                ObjectInputStream objIn = new ObjectInputStream(f);
+                store = (HashMap< String, ObjectManager>) objIn.readObject();
+                objIn.close();
+            }
+            f.close();
+        } catch (Exception ioe) {
+            ioe.printStackTrace();
+        }
+
+        if (store == null) {
+            System.out.println("Store is null");
+            store = new HashMap<>();
+        }
+
     }
 }

@@ -18,11 +18,13 @@ public class ObjectManager {
     JvnObjectImpl jvnObjectImpl;
     ArrayList<JvnRemoteServer> readerServers;
     JvnRemoteServer writerServer;
+    int utilizationDegree;
 
     public ObjectManager(JvnObjectImpl jvnObjectImpl, JvnRemoteServer writerServer) {
         this.jvnObjectImpl = jvnObjectImpl;
-        this.readerServers = new ArrayList<JvnRemoteServer>();
+        this.readerServers = new ArrayList();
         this.writerServer = writerServer;
+        this.utilizationDegree = 1;
     }
 
     public JvnObjectImpl getJvnObjectImpl() {
@@ -34,6 +36,7 @@ public class ObjectManager {
     }
 
     public ArrayList<JvnRemoteServer> getReaderServers() {
+        this.utilizationDegree++;
         return readerServers;
     }
 
@@ -47,6 +50,7 @@ public class ObjectManager {
 
     public void setWriterServer(JvnRemoteServer writerServer) {
         this.writerServer = writerServer;
+        this.utilizationDegree++;
     }
 
     public void removeReaderServers() {
@@ -56,4 +60,14 @@ public class ObjectManager {
     public void removeWriterServer() {
         writerServer = null;
     }
+
+    public int getUtilizationDegree() {
+        return utilizationDegree;
+    }
+
+    public void setUtilizationDegree(int utilizationDegree) {
+        this.utilizationDegree = utilizationDegree;
+    }
+    
+    
 }

@@ -17,6 +17,7 @@ import java.io.*;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import jvn.JvnException;
@@ -28,7 +29,8 @@ public class JvnServerImpl extends UnicastRemoteObject
     public static JvnServerImpl js = null;
     public static Registry reg;
     public JvnRemoteCoord look_up;
-    static JvnObjectImpl cache;
+    public JvnObjectImpl cache;
+     
 
     /**
      * Default constructor
