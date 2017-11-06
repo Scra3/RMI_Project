@@ -1,4 +1,3 @@
-package Irc;
 
 /**
  * *
@@ -6,7 +5,7 @@ package Irc;
  *
  * Authors:
  */
-import JvnObject.JvnDynamicProxy;
+
 import java.awt.*;
 import java.awt.event.*;
 
@@ -23,10 +22,11 @@ public class Irc {
      *
      */
     public static void main(String argv[]) {
-        new Irc((ISentence) JvnDynamicProxy.intitialyze(
-                new Sentence(),
-                "IRC"
-        ));
+        try {
+            new Irc((ISentence) InvocationProxy.newInstance(new Sentence(), "IRC"));
+        } catch (Exception e) {
+            System.out.println("IRC problem : " + e);
+        }
     }
 
     /**
@@ -76,6 +76,7 @@ class readListener implements ActionListener {
      * Management of user events
      *
      */
+    @Override
     public void actionPerformed(ActionEvent e) {
         String s = irc.sentence.read();
         irc.data.setText(s);
@@ -99,6 +100,7 @@ class writeListener implements ActionListener {
      * Management of user events
      *
      */
+    @Override
     public void actionPerformed(ActionEvent e) {
         String s = irc.data.getText();
         irc.sentence.write(s);

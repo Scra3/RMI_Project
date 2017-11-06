@@ -1,4 +1,3 @@
-package Spec;
 
 /**
  * *
@@ -6,12 +5,10 @@ package Spec;
  *
  * Authors:
  */
-import Irc.ISentence;
-import Irc.Sentence;
-import JvnObject.JvnDynamicProxy;
 import static java.lang.Thread.sleep;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import jvn.JvnException;
 
 public class SpecIrc {
 
@@ -22,11 +19,8 @@ public class SpecIrc {
      * application
      *
      */
-    public static void main(String argv[]) {
-        new SpecIrc((ISentence) JvnDynamicProxy.intitialyze(
-                new Sentence(),
-                "IRC"
-        ));
+    public static void main(String argv[]) throws JvnException {
+        new SpecIrc((ISentence) InvocationProxy.newInstance(new Sentence(), "IRC"));
     }
 
     public SpecIrc(ISentence sentence) {
@@ -41,17 +35,32 @@ public class SpecIrc {
 
     private void startSpec() throws InterruptedException {
         int i = 0;
-        sleep(5000);
-        while (i <= 10000000) {
+        String chaine = generate(4);
+
+        while (i <= 500) {
+            sleep(1000);
+
             String s = this.sentence.read();
             System.out.println("READ : " + s);
 
-            i++;
-
-            s = i + "_" + "write";
+            s = i + "_" + chaine + "write";
             this.sentence.write(s);
-            System.out.println("WRITE");
-            System.out.println(s);
+            System.out.println("WRITE : " + s);
+
+            i++;
         }
+    }
+
+    private String generate(int length) {
+        String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+        String pass = "";
+
+        for (int x = 0; x < length; x++) {
+            int i = (int) Math.floor(Math.random() * chars.length());
+            pass += chars.charAt(i);
+        }
+
+        System.out.println(pass);
+        return pass;
     }
 }
